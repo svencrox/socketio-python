@@ -1,8 +1,11 @@
 # socketio-python
 as said in title this be python scoketio sending data to client side and i do not own it
-dependencies
-Flask==1.0.3
-python-socketio==4.0.2
+
+Dependencies:
+
+-Flask==1.0.3
+
+-python-socketio==4.0.2
 
 how to run:
 1. download both files and put it into any of your folder(do not change folder hierarchy)
