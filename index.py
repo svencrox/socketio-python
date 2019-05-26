@@ -9,6 +9,8 @@ import pika
 import csvWrite as csv
 from queue import Queue
 import _thread
+import counting as pc
+import latestFile
 
 
 sio = socketio.Server(logger=True, async_mode=async_mode)
@@ -19,29 +21,48 @@ thread = None
 csv_queue_thread = None
 
 # start a connection with localhost
-connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
+credentials = pika.PlainCredentials('guest', 'guest')
+connection = pika.BlockingConnection(pika.ConnectionParameters('172.17.9.74', 5672, '/', credentials))
 channel = connection.channel()
 
-# more queue below, one queue per pi
 queue_names = ["decibel_one", "decibel_two", "decibel_three", "decibel_four", 
-"decibel_five", "decibel_six", "decibel_seven", "decibel_eight", "decibel_nine"]
+"decibel_five", "decibel_six", "decibel_seven", "decibel_eight", "decibel_nine", "hello"]
 csv_queue = Queue()
 
 # declare queue here
 for queue in queue_names:
     channel.queue_declare(queue=queue)
 
-def randomNo():
-  tmp = random.randint(1,101)
-  return tmp
-
 def callback(ch, method, properties, body):
-    print('received message of', body)
+    # print('body:', body)
+    # print('ch: ', ch)
+    # print('method: ', method.routing_key)
+    # print('properties: ', properties)
     DECIBEL_DATA = body.decode()
     ROUTING_KEY = method.routing_key
     csv_queue.put({'data': DECIBEL_DATA, 'routing': ROUTING_KEY})
     sio.emit('my response', {'data': DECIBEL_DATA, 'routing': ROUTING_KEY},
-        namespace='/test')
+                 namespace='/test')
+
+def callback_camera(ch, method, properties, body):
+    # print('body:', body)
+    # print('ch: ', ch)
+    # print('method: ', method.routing_key)
+    # print('properties: ', properties)
+    count = 0
+    print('received video of size: ' + str(len(body)))
+    #open the file that is received at the file location
+    with open('./videos/' + str(time.time()) + '.mp4', 'wb') as f:
+        f.write(body)
+
+    lat = latestFile.latest()
+    print("latest: " + lat)
+    count = pc.main("./mobilenet_ssd/MobileNetSSD_deploy.prototxt", "./mobilenet_ssd/MobileNetSSD_deploy.caffemodel",
+    lat , "./output/webcam_output.avi")
+    print("Total= ", count)
+    csv.cameraCount(count)
+    sio.emit('my camera', {'data': count, 'routing': method.routing_key},
+                 namespace='/test')
 
 def print_csv_queue():
     while True:
@@ -49,9 +70,13 @@ def print_csv_queue():
         print('CSV data: ', csv_data)
         csv.saveToFile(csv_data)
 
+
 def background_thread():
     for queue in queue_names:
-        channel.basic_consume(callback,queue=queue,no_ack=True)
+        if (queue=='hello'):
+            channel.basic_consume(callback_camera,queue=queue,no_ack=True)
+        else:
+            channel.basic_consume(callback,queue=queue,no_ack=True)
     channel.start_consuming()
 
 
@@ -65,20 +90,16 @@ def index():
         thread = sio.start_background_task(background_thread)
     return render_template('index.html')
 
-@app.route('/checkhistory.html')
-def history():
-    return render_template('checkhistory.html')
-
 @sio.on('my event', namespace='/test')
 def test_message(sid, message):
-    sio.emit('1', {'data': message['data']}, room=sid,
+    sio.emit('my response', {'data': message['data']}, room=sid,
              namespace='/test')
     # prints i'm connected
     print('my event: ' + str(message['data']))
 
 @sio.on('connect', namespace='/test')
 def test_connect(sid, environ):
-    sio.emit('2', {'data': 'Connected', 'count': 0}, room=sid,
+    sio.emit('my response', {'data': 'Connected', 'count': 0}, room=sid,
              namespace='/test')
 
 

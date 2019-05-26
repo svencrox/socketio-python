@@ -16,3 +16,19 @@ def saveToFile(csv_data):
         writeFile.write(ts + ',' + db + '\n')
 
     writeFile.close()
+
+def cameraCount(total):
+    ttl = total
+    print("ttl: " + str(ttl))
+
+    # current time and print it
+    dt = str(datetime.datetime.now())
+    print("dt: " + str(dt))
+
+    row = [dt, ttl]
+
+    with open('camera.csv', 'a') as writeFile:
+        writer = csv.writer(writeFile)
+        writer.writerow(row)
+
+    writeFile.close()
